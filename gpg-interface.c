@@ -20,7 +20,10 @@ struct gpg_format {
 	const char **sigs;
 	int (*verify_signed_buffer)(struct signature_check *sigc,
 				    struct gpg_format *fmt, const char *payload,
-				    size_t payload_size, const char *signature,
+				    size_t payload_size,
+				    timestamp_t payload_timestamp,
+				    struct strbuf *payload_signer,
+				    const char *signature,
 				    size_t signature_size);
 	int (*sign_buffer)(struct strbuf *buffer, struct strbuf *signature,
 			   const char *signing_key);
@@ -54,11 +57,17 @@ static const char *ssh_sigs[] = {
 
 static int verify_gpg_signed_buffer(struct signature_check *sigc,
 				    struct gpg_format *fmt, const char *payload,
-				    size_t payload_size, const char *signature,
+				    size_t payload_size,
+				    timestamp_t payload_timestamp,
+				    struct strbuf *payload_signer,
+				    const char *signature,
 				    size_t signature_size);
 static int verify_ssh_signed_buffer(struct signature_check *sigc,
 				    struct gpg_format *fmt, const char *payload,
-				    size_t payload_size, const char *signature,
+				    size_t payload_size,
+				    timestamp_t payload_timestamp,
+				    struct strbuf *payload_signer,
+				    const char *signature,
 				    size_t signature_size);
 static int sign_buffer_gpg(struct strbuf *buffer, struct strbuf *signature,
 			   const char *signing_key);
@@ -315,7 +324,10 @@ error:
 
 static int verify_gpg_signed_buffer(struct signature_check *sigc,
 				    struct gpg_format *fmt, const char *payload,
-				    size_t payload_size, const char *signature,
+				    size_t payload_size,
+				    timestamp_t payload_timestamp,
+				    struct strbuf *payload_signer,
+				    const char *signature,
 				    size_t signature_size)
 {
 	struct child_process gpg = CHILD_PROCESS_INIT;
@@ -425,7 +437,10 @@ cleanup:
 
 static int verify_ssh_signed_buffer(struct signature_check *sigc,
 				    struct gpg_format *fmt, const char *payload,
-				    size_t payload_size, const char *signature,
+				    size_t payload_size,
+				    timestamp_t payload_timestamp,
+				    struct strbuf *payload_signer,
+				    const char *signature,
 				    size_t signature_size)
 {
 	struct child_process ssh_keygen = CHILD_PROCESS_INIT;
@@ -560,8 +575,10 @@ out:
 	return ret;
 }
 
-int check_signature(const char *payload, size_t plen, const char *signature,
-	size_t slen, struct signature_check *sigc)
+int check_signature(const char *payload, size_t plen,
+		    timestamp_t payload_timestamp,
+		    struct strbuf *payload_signer, const char *signature,
+		    size_t slen, struct signature_check *sigc)
 {
 	struct gpg_format *fmt;
 	int status;
@@ -573,8 +590,9 @@ int check_signature(const char *payload, size_t plen, const char *signature,
 	if (!fmt)
 		die(_("bad/incompatible signature '%s'"), signature);
 
-	status = fmt->verify_signed_buffer(sigc, fmt, payload, plen, signature,
-					   slen);
+	status = fmt->verify_signed_buffer(sigc, fmt, payload, plen,
+					   payload_timestamp, payload_signer,
+					   signature, slen);
 
 	if (status && !sigc->output)
 		return !!status;

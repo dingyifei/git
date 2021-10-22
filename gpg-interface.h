@@ -71,8 +71,9 @@ const char *get_signing_key(void);
  */
 const char *get_signing_key_id(void);
 int check_signature(const char *payload, size_t plen,
-		    const char *signature, size_t slen,
-		    struct signature_check *sigc);
+		    timestamp_t payload_timestamp,
+		    struct strbuf *payload_signer, const char *signature,
+		    size_t slen, struct signature_check *sigc);
 void print_signature_buffer(const struct signature_check *sigc,
 			    unsigned flags);
 

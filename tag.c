@@ -25,7 +25,7 @@ static int run_gpg_verify(const char *buf, unsigned long size, unsigned flags)
 		return error("no signature found");
 	}
 
-	ret = check_signature(payload.buf, payload.len, signature.buf,
+	ret = check_signature(payload.buf, payload.len, 0, NULL, signature.buf,
 				signature.len, &sigc);
 
 	if (!(flags & GPG_VERIFY_OMIT_STATUS))

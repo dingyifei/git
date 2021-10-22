@@ -1212,7 +1212,7 @@ int check_commit_signature(const struct commit *commit, struct signature_check *
 
 	if (parse_signed_commit(commit, &payload, &signature, the_hash_algo) <= 0)
 		goto out;
-	ret = check_signature(payload.buf, payload.len, signature.buf,
+	ret = check_signature(payload.buf, payload.len, 0, NULL, signature.buf,
 		signature.len, sigc);
 
  out:

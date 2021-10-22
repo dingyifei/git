@@ -513,7 +513,7 @@ static void show_signature(struct rev_info *opt, struct commit *commit)
 	if (parse_signed_commit(commit, &payload, &signature, the_hash_algo) <= 0)
 		goto out;
 
-	status = check_signature(payload.buf, payload.len, signature.buf,
+	status = check_signature(payload.buf, payload.len, 0, NULL, signature.buf,
 				 signature.len, &sigc);
 	if (status && !sigc.output)
 		show_sig_lines(opt, status, "No signature\n");
@@ -583,7 +583,7 @@ static int show_one_mergetag(struct commit *commit,
 	status = -1;
 	if (parse_signature(extra->value, extra->len, &payload, &signature)) {
 		/* could have a good signature */
-		status = check_signature(payload.buf, payload.len,
+		status = check_signature(payload.buf, payload.len, 0, NULL,
 					 signature.buf, signature.len, &sigc);
 		if (sigc.output)
 			strbuf_addstr(&verify_message, sigc.output);
