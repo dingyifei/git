@@ -453,6 +453,13 @@ static int verify_ssh_signed_buffer(struct signature_check *sigc,
 	struct strbuf ssh_principals_err = STRBUF_INIT;
 	struct strbuf ssh_keygen_out = STRBUF_INIT;
 	struct strbuf ssh_keygen_err = STRBUF_INIT;
+	struct strbuf verify_time = STRBUF_INIT;
+	const struct date_mode verify_date_mode = {
+		.type = DATE_STRFTIME,
+		.strftime_fmt = "%Y%m%d%H%M%S",
+		/* SSH signing key validity has no timezone information - Use the local timezone */
+		.local = 1,
+	};
 
 	if (!ssh_allowed_signers) {
 		error(_("gpg.ssh.allowedSignersFile needs to be configured and exist for ssh signature verification"));
@@ -470,11 +477,17 @@ static int verify_ssh_signed_buffer(struct signature_check *sigc,
 		return -1;
 	}
 
+	if (payload_timestamp) {
+		strbuf_addf(&verify_time, "-Overify-time=%s",
+			    show_date(payload_timestamp, 0, &verify_date_mode));
+	}
+
 	/* Find the principal from the signers */
 	strvec_pushl(&ssh_keygen.args, fmt->program,
 		     "-Y", "find-principals",
 		     "-f", ssh_allowed_signers,
 		     "-s", buffer_file->filename.buf,
+		     verify_time.buf,
 		     NULL);
 	ret = pipe_command(&ssh_keygen, NULL, 0, &ssh_principals_out, 0,
 			   &ssh_principals_err, 0);
@@ -482,6 +495,7 @@ static int verify_ssh_signed_buffer(struct signature_check *sigc,
 		error(_("ssh-keygen -Y find-principals/verify is needed for ssh signature verification (available in openssh version 8.2p1+)"));
 		goto out;
 	}
+
 	if (ret || !ssh_principals_out.len) {
 		/*
 		 * We did not find a matching principal in the allowedSigners
@@ -492,6 +506,7 @@ static int verify_ssh_signed_buffer(struct signature_check *sigc,
 			     "-Y", "check-novalidate",
 			     "-n", "git",
 			     "-s", buffer_file->filename.buf,
+			     verify_time.buf,
 			     NULL);
 		pipe_command(&ssh_keygen, payload, payload_size,
 				   &ssh_keygen_out, 0, &ssh_keygen_err, 0);
@@ -526,6 +541,7 @@ static int verify_ssh_signed_buffer(struct signature_check *sigc,
 				     "-f", ssh_allowed_signers,
 				     "-I", principal,
 				     "-s", buffer_file->filename.buf,
+				     verify_time.buf,
 				     NULL);
 
 			if (ssh_revocation_file) {
@@ -571,8 +587,35 @@ out:
 	strbuf_release(&ssh_principals_err);
 	strbuf_release(&ssh_keygen_out);
 	strbuf_release(&ssh_keygen_err);
+	strbuf_release(&verify_time);
 
 	return ret;
+}
+
+int parse_signed_buffer_metadata(const char *payload, const char *signer_header,
+				 timestamp_t *payload_timestamp,
+				 struct strbuf *payload_signer)
+{
+	const char *ident_line = NULL;
+	size_t ident_len;
+	struct ident_split ident;
+
+	ident_line = find_commit_header(payload, signer_header, &ident_len);
+	if (ident_line && ident_len) {
+		if (!split_ident_line(&ident, ident_line, ident_len)) {
+			if (payload_timestamp && ident.date_begin &&
+			    ident.date_end)
+				*payload_timestamp = parse_timestamp(
+					ident.date_begin, NULL, 10);
+			if (payload_signer)
+				strbuf_add(payload_signer, ident.mail_begin,
+					(ident.mail_end - ident.mail_begin));
+
+			return 0;
+		}
+	}
+
+	return 1;
 }
 
 int check_signature(const char *payload, size_t plen,
