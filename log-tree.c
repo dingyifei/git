@@ -509,12 +509,19 @@ static void show_signature(struct rev_info *opt, struct commit *commit)
 	struct strbuf signature = STRBUF_INIT;
 	struct signature_check sigc = { 0 };
 	int status;
+	struct strbuf payload_signer = STRBUF_INIT;
+	timestamp_t payload_timestamp = 0;
 
 	if (parse_signed_commit(commit, &payload, &signature, the_hash_algo) <= 0)
 		goto out;
 
-	status = check_signature(payload.buf, payload.len, signature.buf,
-				 signature.len, &sigc);
+	if (parse_signed_buffer_metadata(payload.buf, "committer",
+					 &payload_timestamp, &payload_signer))
+		goto out;
+
+	status = check_signature(payload.buf, payload.len, payload_timestamp,
+				 &payload_signer, signature.buf, signature.len,
+				 &sigc);
 	if (status && !sigc.output)
 		show_sig_lines(opt, status, "No signature\n");
 	else
@@ -524,6 +531,7 @@ static void show_signature(struct rev_info *opt, struct commit *commit)
  out:
 	strbuf_release(&payload);
 	strbuf_release(&signature);
+	strbuf_release(&payload_signer);
 }
 
 static int which_parent(const struct object_id *oid, const struct commit *commit)
@@ -558,6 +566,8 @@ static int show_one_mergetag(struct commit *commit,
 	int status, nth;
 	struct strbuf payload = STRBUF_INIT;
 	struct strbuf signature = STRBUF_INIT;
+	struct strbuf payload_signer = STRBUF_INIT;
+	timestamp_t payload_timestamp = 0;
 
 	hash_object_file(the_hash_algo, extra->value, extra->len,
 			 type_name(OBJ_TAG), &oid);
@@ -582,8 +592,15 @@ static int show_one_mergetag(struct commit *commit,
 
 	status = -1;
 	if (parse_signature(extra->value, extra->len, &payload, &signature)) {
+		if (parse_signed_buffer_metadata(payload.buf, "tagger",
+						 &payload_timestamp,
+						 &payload_signer))
+			strbuf_addstr(&verify_message,
+				_("failed to parse timestamp and signer info from payload"));
+
 		/* could have a good signature */
 		status = check_signature(payload.buf, payload.len,
+					 payload_timestamp, &payload_signer,
 					 signature.buf, signature.len, &sigc);
 		if (sigc.output)
 			strbuf_addstr(&verify_message, sigc.output);
@@ -597,6 +614,7 @@ static int show_one_mergetag(struct commit *commit,
 	strbuf_release(&verify_message);
 	strbuf_release(&payload);
 	strbuf_release(&signature);
+	strbuf_release(&payload_signer);
 	return 0;
 }
 

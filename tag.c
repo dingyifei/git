@@ -16,6 +16,8 @@ static int run_gpg_verify(const char *buf, unsigned long size, unsigned flags)
 	struct strbuf payload = STRBUF_INIT;
 	struct strbuf signature = STRBUF_INIT;
 	int ret;
+	struct strbuf payload_signer = STRBUF_INIT;
+	timestamp_t payload_timestamp = 0;
 
 	memset(&sigc, 0, sizeof(sigc));
 
@@ -25,8 +27,13 @@ static int run_gpg_verify(const char *buf, unsigned long size, unsigned flags)
 		return error("no signature found");
 	}
 
-	ret = check_signature(payload.buf, payload.len, signature.buf,
-				signature.len, &sigc);
+	if (parse_signed_buffer_metadata(payload.buf, "tagger",
+					 &payload_timestamp, &payload_signer))
+		return error(_("failed to parse timestamp and signer info from payload"));
+
+	ret = check_signature(payload.buf, payload.len, payload_timestamp,
+			      &payload_signer, signature.buf, signature.len,
+			      &sigc);
 
 	if (!(flags & GPG_VERIFY_OMIT_STATUS))
 		print_signature_buffer(&sigc, flags);
@@ -34,6 +41,7 @@ static int run_gpg_verify(const char *buf, unsigned long size, unsigned flags)
 	signature_check_clear(&sigc);
 	strbuf_release(&payload);
 	strbuf_release(&signature);
+	strbuf_release(&payload_signer);
 	return ret;
 }
 

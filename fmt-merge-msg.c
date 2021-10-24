@@ -524,6 +524,8 @@ static void fmt_merge_msg_sigs(struct strbuf *out)
 		unsigned long len = size;
 		struct signature_check sigc = { NULL };
 		struct strbuf payload = STRBUF_INIT, sig = STRBUF_INIT;
+		struct strbuf payload_signer = STRBUF_INIT;
+		timestamp_t payload_timestamp = 0;
 
 		if (!buf || type != OBJ_TAG)
 			goto next;
@@ -533,8 +535,16 @@ static void fmt_merge_msg_sigs(struct strbuf *out)
 		else {
 			buf = payload.buf;
 			len = payload.len;
-			if (check_signature(payload.buf, payload.len, sig.buf,
-					    sig.len, &sigc) &&
+
+			if (parse_signed_buffer_metadata(payload.buf, "tagger",
+							 &payload_timestamp,
+							 &payload_signer))
+				strbuf_addstr(&sig,
+					_("failed to parse timestamp and signer info from payload"));
+
+			if (check_signature(payload.buf, payload.len,
+					    payload_timestamp, &payload_signer,
+					    sig.buf, sig.len, &sigc) &&
 			    !sigc.output)
 				strbuf_addstr(&sig, "gpg verification failed.\n");
 			else
@@ -564,6 +574,7 @@ static void fmt_merge_msg_sigs(struct strbuf *out)
 		}
 		strbuf_release(&payload);
 		strbuf_release(&sig);
+		strbuf_release(&payload_signer);
 	next:
 		free(origbuf);
 	}

@@ -1207,17 +1207,25 @@ int check_commit_signature(const struct commit *commit, struct signature_check *
 	struct strbuf payload = STRBUF_INIT;
 	struct strbuf signature = STRBUF_INIT;
 	int ret = 1;
+	struct strbuf payload_signer = STRBUF_INIT;
+	timestamp_t payload_timestamp = 0;
 
 	sigc->result = 'N';
 
 	if (parse_signed_commit(commit, &payload, &signature, the_hash_algo) <= 0)
 		goto out;
-	ret = check_signature(payload.buf, payload.len, signature.buf,
-		signature.len, sigc);
+	if (parse_signed_buffer_metadata(payload.buf, "committer",
+					 &payload_timestamp, &payload_signer))
+		goto out;
+
+	ret = check_signature(payload.buf, payload.len, payload_timestamp,
+			      &payload_signer, signature.buf, signature.len,
+			      sigc);
 
  out:
 	strbuf_release(&payload);
 	strbuf_release(&signature);
+	strbuf_release(&payload_signer);
 
 	return ret;
 }

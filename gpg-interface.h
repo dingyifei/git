@@ -66,13 +66,22 @@ void set_signing_key(const char *);
 const char *get_signing_key(void);
 
 /*
+ * Tries to find "signer_header" (usually committer or tagger) in the payload,
+ * and sets the corresponding timestamp and signer parameters if found.
+ */
+int parse_signed_buffer_metadata(const char *payload, const char *signer_header,
+				 timestamp_t *payload_timestamp,
+				 struct strbuf *payload_signer);
+
+/*
  * Returns a textual unique representation of the signing key in use
  * Either a GPG KeyID or a SSH Key Fingerprint
  */
 const char *get_signing_key_id(void);
 int check_signature(const char *payload, size_t plen,
-		    const char *signature, size_t slen,
-		    struct signature_check *sigc);
+		    timestamp_t payload_timestamp,
+		    struct strbuf *payload_signer, const char *signature,
+		    size_t slen, struct signature_check *sigc);
 void print_signature_buffer(const struct signature_check *sigc,
 			    unsigned flags);
 
